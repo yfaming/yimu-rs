@@ -13,7 +13,7 @@ use yimu::dns::AsyncResolverExt;
 use yimu::error::{Socks5Error, YimuError};
 use yimu::framed_ext::{FramedExt, FramedExt2};
 use yimu::proxy::{Proxy, ProxyManager};
-use yimu::socks5::{AuthNegotiationReply, NegotiateCodec};
+use yimu::socks5::{AuthNegotiationReply, NegotiateCodec, REP_SUCCEEDED};
 use yimu::socks5::{Cmd, Reply, Request, Socks5Codec, S5AUTH_NO_AUTHENTICATION_REQUIRED, SOCKSV5};
 
 #[tokio::main(multi_thread)]
@@ -55,7 +55,7 @@ async fn handle_socks5_request(
     let remote_sockaddr = SocketAddr::new(remote_ips[0], req.dest_port);
 
     let proxy = ProxyManager.chose_proxy(&remote_sockaddr).await?;
-    let reply = Reply::with_addr(proxy.local_addr()?);
+    let reply = Reply::new(REP_SUCCEEDED, proxy.local_addr()?);
     Ok((proxy, reply))
 }
 
@@ -76,7 +76,7 @@ async fn handle(stream: TcpStream, resolver: AsyncResolver) -> Result<(), YimuEr
     let (proxy, reply) = match handle_socks5_request(&req, &resolver).await {
         Ok(proxy) => proxy,
         Err(e) => {
-            let reply = Reply::with_socks5_error(&e);
+            let reply = Reply::from(&e);
             transport.framed_write(reply).await?;
             return Ok(());
         }

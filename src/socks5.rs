@@ -183,28 +183,22 @@ pub fn socks5_error_to_reply_code(e: &Socks5Error) -> u8 {
 }
 
 impl Reply {
-    pub fn with_reply_code(code: u8) -> Reply {
+    pub fn new(code: u8, sockaddr: SocketAddr) -> Reply {
         Reply {
             version: SOCKSV5,
             reply_code: code,
             rsv: 0,
-            bind_addr: Addr::Ip(IpAddr::V4(Ipv4Addr::UNSPECIFIED)),
-            bind_port: 0,
-        }
-    }
-
-    pub fn with_socks5_error(e: &Socks5Error) -> Reply {
-        Reply::with_reply_code(socks5_error_to_reply_code(e))
-    }
-
-    pub fn with_addr(sockaddr: SocketAddr) -> Reply {
-        Reply {
-            version: SOCKSV5,
-            reply_code: REP_SUCCEEDED,
-            rsv: 0,
             bind_addr: Addr::Ip(sockaddr.ip()),
             bind_port: sockaddr.port(),
         }
+    }
+}
+
+impl From<&'_ Socks5Error> for Reply {
+    fn from(e: &Socks5Error) -> Reply {
+        let code = socks5_error_to_reply_code(e);
+        let sockaddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0);
+        Reply::new(code, sockaddr)
     }
 }
 
