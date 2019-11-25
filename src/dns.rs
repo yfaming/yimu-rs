@@ -1,9 +1,8 @@
+use crate::socks5::Addr;
 use async_trait::async_trait;
 use std::net::IpAddr;
 use trust_dns_resolver::error::ResolveError;
 use trust_dns_resolver::AsyncResolver;
-
-use crate::socks5::Addr;
 
 #[async_trait]
 pub trait AsyncResolverExt {

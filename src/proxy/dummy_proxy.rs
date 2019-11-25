@@ -1,3 +1,5 @@
+use crate::error::Socks5Error;
+use crate::proxy::Proxy;
 use std::io;
 use std::net::SocketAddr;
 use std::pin::Pin;
@@ -5,16 +7,13 @@ use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
 
-use crate::error::Socks5Error;
-use crate::proxy::Proxy;
-
 /// A dummy proxy, which does nothing proxying.
 pub struct DummyProxy {
     stream: TcpStream,
 }
 
 impl DummyProxy {
-    pub async fn create(target_addr: &SocketAddr) -> Result<DummyProxy, Socks5Error> {
+    pub async fn create(target_addr: SocketAddr) -> Result<DummyProxy, Socks5Error> {
         let stream = TcpStream::connect(target_addr).await?;
         Ok(DummyProxy { stream })
     }

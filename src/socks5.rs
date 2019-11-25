@@ -1,10 +1,9 @@
+use crate::error::Socks5Error;
 use bytes::{BufMut, BytesMut};
 use std::convert::TryFrom;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::str;
 use tokio::codec::{Decoder, Encoder};
-
-use crate::error::Socks5Error;
 
 pub const SOCKSV5: u8 = 5;
 

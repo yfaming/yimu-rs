@@ -8,10 +8,12 @@ edition = "2018"
 
 [dependencies]
 async-trait = "0.1.17"
+backtrace = "0.3.40"
 bytes = "0.4.12"
 env_logger = "0.7.1"
 failure = "0.1.6"
-futures = "0.3.1"
+futures-preview = {version = "0.3.0-alpha.19", features = ["async-await"]}
+futures-sink-preview = "0.3.0-alpha.19"
 futures-util-preview = "0.3.0-alpha.19"
 log = "0.4.8"
 tokio = "0.2.0-alpha.6"
