@@ -8,7 +8,7 @@ use tokio::codec::{Framed, FramedParts};
 use tokio::io::{AsyncRead, AsyncWrite};
 
 fn unexpected_eof() -> io::Error {
-    From::from(io::ErrorKind::UnexpectedEof)
+    io::Error::from(io::ErrorKind::UnexpectedEof)
 }
 
 /// Framed impls Stream/Sink, so it's suitably used in a loop.

@@ -6,11 +6,18 @@ pub type YimuError = failure::Error;
 
 #[derive(Debug)]
 pub enum Socks5Error {
+    AuthFailed,
     InvalidCmd(u8),
     InvalidAddrType(u8),
     InvalidDomainName,
     ResolveError(ResolveError),
     Io(io::Error),
+}
+
+impl Socks5Error {
+    pub fn invalid_data() -> Socks5Error {
+        Socks5Error::Io(io::Error::from(io::ErrorKind::InvalidData))
+    }
 }
 
 impl fmt::Display for Socks5Error {

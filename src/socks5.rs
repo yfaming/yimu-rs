@@ -1,10 +1,10 @@
+use crate::error::Socks5Error;
 use bytes::{BufMut, BytesMut};
 use std::convert::TryFrom;
+use std::fmt;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::str;
 use tokio::codec::{Decoder, Encoder};
-
-use crate::error::Socks5Error;
 
 pub const SOCKSV5: u8 = 5;
 
@@ -14,23 +14,31 @@ pub const S5AUTH_USERNAME_PASSWORD: u8 = 2;
 pub const S5AUTH_NO_ACCEPTABLE_METHODS: u8 = 255;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct AuthNegotiationRequest {
+pub struct AuthNegoRequest {
     pub version: u8,
     pub nmethods: u8,
     pub methods: Vec<u8>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct AuthNegotiationReply {
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct AuthNegoReply {
     pub version: u8,
     pub method: u8,
+}
+impl AuthNegoReply {
+    pub fn new(method: u8) -> AuthNegoReply {
+        AuthNegoReply {
+            version: SOCKSV5,
+            method,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct NegotiateCodec;
 
 impl Decoder for NegotiateCodec {
-    type Item = AuthNegotiationRequest;
+    type Item = AuthNegoRequest;
     type Error = Socks5Error;
 
     // +----+----------+----------+
@@ -38,13 +46,10 @@ impl Decoder for NegotiateCodec {
     // +----+----------+----------+
     // | 1  |    1     | 1 to 255 |
     // +----+----------+----------+
-    fn decode(
-        &mut self,
-        src: &mut BytesMut,
-    ) -> Result<Option<AuthNegotiationRequest>, Socks5Error> {
+    fn decode(&mut self, src: &mut BytesMut) -> Result<Option<AuthNegoRequest>, Socks5Error> {
         if src.len() >= 2 && src.len() >= src[1] as usize + 2 {
             let nmethods = src[1];
-            let req = AuthNegotiationRequest {
+            let req = AuthNegoRequest {
                 version: src[0],
                 nmethods: nmethods,
                 methods: Vec::from(&src[2..2 + nmethods as usize]),
@@ -57,7 +62,7 @@ impl Decoder for NegotiateCodec {
 }
 
 impl Encoder for NegotiateCodec {
-    type Item = AuthNegotiationReply;
+    type Item = AuthNegoReply;
     type Error = Socks5Error;
 
     // +----+--------+
@@ -65,11 +70,7 @@ impl Encoder for NegotiateCodec {
     // +----+--------+
     // | 1  |   1    |
     // +----+--------+
-    fn encode(
-        &mut self,
-        item: AuthNegotiationReply,
-        dst: &mut BytesMut,
-    ) -> Result<(), Socks5Error> {
+    fn encode(&mut self, item: AuthNegoReply, dst: &mut BytesMut) -> Result<(), Socks5Error> {
         dst.reserve(2);
         dst.put_u8(item.version);
         dst.put_u8(item.method);
@@ -142,6 +143,15 @@ impl Addr {
     }
 }
 
+impl fmt::Display for Addr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        match self {
+            Addr::Ip(ipaddr) => ipaddr.fmt(f),
+            Addr::Domain(domain) => domain.fmt(f),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Request {
     pub version: u8,
@@ -158,6 +168,16 @@ pub struct Reply {
     pub rsv: u8,
     pub bind_addr: Addr,
     pub bind_port: u16,
+}
+
+impl fmt::Display for Request {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        match self.cmd {
+            Cmd::Connect => write!(f, "CONNECT {}:{}", self.dest_addr, self.dest_port),
+            Cmd::Bind => write!(f, "BIND"),
+            Cmd::UdpAssociate => write!(f, "UDP ASSOCIATE"),
+        }
+    }
 }
 
 // reply code
@@ -177,7 +197,6 @@ pub fn socks5_error_to_reply_code(e: &Socks5Error) -> u8 {
     match e {
         InvalidCmd(_) => REP_COMMAND_NOT_SUPPORTED,
         InvalidAddrType(_) => REP_ADDRESS_TYPE_NOT_SUPPORTED,
-        InvalidDomainName => REP_ADDRESS_TYPE_NOT_SUPPORTED,
         _ => REP_GENERAL_FAILURE,
     }
 }
@@ -194,9 +213,9 @@ impl Reply {
     }
 }
 
-impl From<&'_ Socks5Error> for Reply {
-    fn from(e: &Socks5Error) -> Reply {
-        let code = socks5_error_to_reply_code(e);
+impl From<Socks5Error> for Reply {
+    fn from(e: Socks5Error) -> Reply {
+        let code = socks5_error_to_reply_code(&e);
         let sockaddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0);
         Reply::new(code, sockaddr)
     }
@@ -245,7 +264,7 @@ impl Decoder for Socks5Codec {
             }
             AddrType::Domain => {
                 let domain = str::from_utf8(addr_raw)
-                    .map_err(|_| Socks5Error::InvalidDomainName)?
+                    .map_err(|_| Socks5Error::invalid_data())?
                     .to_string();
                 Addr::Domain(domain)
             }
@@ -313,7 +332,7 @@ mod tests {
         let req = NegotiateCodec.decode(&mut buf)?;
         assert_eq!(
             req,
-            Some(AuthNegotiationRequest {
+            Some(AuthNegoRequest {
                 version: 5,
                 nmethods: 1,
                 methods: vec![S5AUTH_NO_AUTHENTICATION_REQUIRED],
@@ -325,7 +344,7 @@ mod tests {
 
     #[test]
     fn test_encode_auth_negotiation_reply() -> Result<(), Socks5Error> {
-        let reply = AuthNegotiationReply {
+        let reply = AuthNegoReply {
             version: 5,
             method: S5AUTH_NO_AUTHENTICATION_REQUIRED,
         };
