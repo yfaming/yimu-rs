@@ -16,7 +16,7 @@ async fn main() -> Result<(), YimuError> {
             "yfaming".to_string(),
         ));
 
-    let server = builder.build()?;
+    let server = builder.build().await?;
     server.run().await?;
     Ok(())
 }

@@ -1,10 +1,10 @@
 use crate::error::Socks5Error;
-use bytes::{BufMut, BytesMut};
+use bytes::{Buf, BufMut, BytesMut};
 use std::convert::TryFrom;
 use std::fmt;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::str;
-use tokio::codec::{Decoder, Encoder};
+use tokio_util::codec::{Decoder, Encoder};
 
 pub const SOCKSV5: u8 = 5;
 
@@ -61,8 +61,7 @@ impl Decoder for NegotiateCodec {
     }
 }
 
-impl Encoder for NegotiateCodec {
-    type Item = AuthNegoReply;
+impl Encoder<AuthNegoReply> for NegotiateCodec {
     type Error = Socks5Error;
 
     // +----+--------+
@@ -287,8 +286,7 @@ impl Decoder for Socks5Codec {
     }
 }
 
-impl Encoder for Socks5Codec {
-    type Item = Reply;
+impl Encoder<Reply> for Socks5Codec {
     type Error = Socks5Error;
 
     // +----+-----+-------+------+----------+----------+
@@ -316,7 +314,7 @@ impl Encoder for Socks5Codec {
                 dst.put_slice(domain.as_bytes());
             }
         }
-        dst.put_u16_be(item.bind_port);
+        dst.put_u16(item.bind_port);
         Ok(())
     }
 }

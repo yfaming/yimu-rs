@@ -5,8 +5,8 @@ use async_trait::async_trait;
 use bytes::{BufMut, BytesMut};
 use dyn_clone::DynClone;
 use std::str;
-use tokio::codec::{Decoder, Encoder, Framed};
 use tokio::net::TcpStream;
+use tokio_util::codec::{Decoder, Encoder, Framed};
 
 #[async_trait]
 pub trait Authenticate: DynClone + Sync + Send {
@@ -145,8 +145,7 @@ impl Decoder for UsernamePasswordAuthCodec {
     }
 }
 
-impl Encoder for UsernamePasswordAuthCodec {
-    type Item = UsernamePasswordAuthResponse;
+impl Encoder<UsernamePasswordAuthResponse> for UsernamePasswordAuthCodec {
     type Error = Socks5Error;
 
     fn encode(

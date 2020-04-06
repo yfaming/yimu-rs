@@ -6,17 +6,17 @@ use crate::socks5::{AuthNegoReply, AuthNegoRequest, NegotiateCodec, REP_SUCCEEDE
 use crate::socks5::{Cmd, Reply, Request, Socks5Codec, S5AUTH_NO_ACCEPTABLE_METHODS};
 use dyn_clone::clone_box;
 use futures::future::try_join;
-use futures_util::future::FutureExt;
+use futures::future::FutureExt;
 use log::{error, info};
 use std::io;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
-use tokio::codec::Framed;
-use tokio::io::{split, AsyncReadExt};
+use tokio::io::{copy, split};
 use tokio::net::{TcpListener, TcpStream};
+use tokio_util::codec::Framed;
 use trust_dns_resolver::config::{NameServerConfig, Protocol, ResolverConfig, ResolverOpts};
 use trust_dns_resolver::error::ResolveError;
-use trust_dns_resolver::AsyncResolver;
+use trust_dns_resolver::TokioAsyncResolver;
 
 pub struct Server {
     state: Arc<State>,
@@ -31,11 +31,11 @@ impl Server {
 pub struct State {
     listen_addr: SocketAddr,
     authenticators: Vec<Box<dyn Authenticate + Send + Sync + 'static>>,
-    resolver: AsyncResolver,
+    resolver: TokioAsyncResolver,
 }
 
 impl State {
-    pub fn resolver(&self) -> AsyncResolver {
+    pub fn resolver(&self) -> TokioAsyncResolver {
         self.resolver.clone()
     }
 
@@ -68,11 +68,11 @@ impl Builder {
         }
     }
 
-    pub fn build(self) -> Result<Server, YimuError> {
+    pub async fn build(self) -> Result<Server, YimuError> {
         let state = State {
             listen_addr: SocketAddr::new(self.ip, self.port),
             authenticators: self.authenticators,
-            resolver: self.dns.create_resolver()?,
+            resolver: self.dns.create_resolver().await?,
         };
 
         Ok(Server {
@@ -118,29 +118,15 @@ impl Dns {
         Dns::System
     }
 
-    pub fn create_resolver(&self) -> Result<AsyncResolver, YimuError> {
+    pub async fn create_resolver(&self) -> Result<TokioAsyncResolver, YimuError> {
         let opts = ResolverOpts::default();
         let resolver = match self {
-            Dns::System => {
-                let (resolver, background) = AsyncResolver::from_system_conf()?;
-                tokio::spawn(background);
-                resolver
-            }
-            Dns::Google => {
-                let (resolver, background) = AsyncResolver::new(ResolverConfig::google(), opts);
-                tokio::spawn(background);
-                resolver
-            }
+            Dns::System => TokioAsyncResolver::tokio_from_system_conf().await?,
+            Dns::Google => TokioAsyncResolver::tokio(ResolverConfig::google(), opts).await?,
             Dns::Cloudflare => {
-                let (resolver, background) = AsyncResolver::new(ResolverConfig::google(), opts);
-                tokio::spawn(background);
-                resolver
+                TokioAsyncResolver::tokio(ResolverConfig::cloudflare(), opts).await?
             }
-            Dns::Quad9 => {
-                let (resolver, background) = AsyncResolver::new(ResolverConfig::google(), opts);
-                tokio::spawn(background);
-                resolver
-            }
+            Dns::Quad9 => TokioAsyncResolver::tokio(ResolverConfig::quad9(), opts).await?,
             Dns::NameServer(socket_addr) => {
                 let mut config = ResolverConfig::new();
                 config.add_name_server(NameServerConfig {
@@ -148,9 +134,7 @@ impl Dns {
                     protocol: Protocol::Udp,
                     tls_dns_name: None,
                 });
-                let (resolver, background) = AsyncResolver::new(config, opts);
-                tokio::spawn(background);
-                resolver
+                TokioAsyncResolver::tokio(config, opts).await?
             }
         };
         Ok(resolver)
@@ -212,8 +196,8 @@ async fn handle(
     let (mut ri, mut wi) = stream.split();
     let (mut ro, mut wo) = split(remote_stream);
 
-    let client_to_server = ri.copy(&mut wo);
-    let server_to_client = ro.copy(&mut wi);
+    let client_to_server = copy(&mut ri, &mut wo);
+    let server_to_client = copy(&mut ro, &mut wi);
 
     try_join(client_to_server, server_to_client).await?;
     Ok(())
@@ -222,7 +206,7 @@ async fn handle(
 pub async fn handle_request(
     client_addr: SocketAddr,
     req: &Request,
-    resolver: &AsyncResolver,
+    resolver: &TokioAsyncResolver,
 ) -> Result<(TcpStream, Reply), Socks5Error> {
     if req.cmd != Cmd::Connect {
         // only cmd CONNECT is supported for now.

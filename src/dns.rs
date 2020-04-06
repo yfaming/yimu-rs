@@ -2,7 +2,7 @@ use crate::socks5::Addr;
 use async_trait::async_trait;
 use std::net::IpAddr;
 use trust_dns_resolver::error::ResolveError;
-use trust_dns_resolver::AsyncResolver;
+use trust_dns_resolver::TokioAsyncResolver;
 
 #[async_trait]
 pub trait AsyncResolverExt {
@@ -10,7 +10,7 @@ pub trait AsyncResolverExt {
 }
 
 #[async_trait]
-impl AsyncResolverExt for AsyncResolver {
+impl AsyncResolverExt for TokioAsyncResolver {
     async fn dns_resolve(&self, addr: &Addr) -> Result<Vec<IpAddr>, ResolveError> {
         match addr {
             Addr::Ip(ip) => Ok(vec![*ip]),
