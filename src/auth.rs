@@ -86,20 +86,20 @@ pub struct UsernamePasswordAuthResponse {
     pub status: u8,
 }
 
-const STATUS_SUCCESS: u8 = 0;
-const STATUS_FAIL: u8 = 1;
-
 impl UsernamePasswordAuthResponse {
+    const STATUS_SUCCESS: u8 = 0;
+    const STATUS_FAIL: u8 = 1;
+
     pub fn success() -> UsernamePasswordAuthResponse {
         UsernamePasswordAuthResponse {
             version: socks5::SOCKSV5,
-            status: STATUS_SUCCESS,
+            status: Self::STATUS_SUCCESS,
         }
     }
     pub fn fail() -> UsernamePasswordAuthResponse {
         UsernamePasswordAuthResponse {
             version: socks5::SOCKSV5,
-            status: STATUS_FAIL,
+            status: Self::STATUS_FAIL,
         }
     }
 }

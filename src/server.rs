@@ -1,67 +1,42 @@
+use crate::auth::Authenticate;
+use crate::dns::AsyncResolverExt;
+use crate::error::{Socks5Error, YimuError};
+use crate::framed_ext::FramedExt;
+use crate::socks5::{AuthNegoReply, AuthNegoRequest, NegotiateCodec, REP_SUCCEEDED};
+use crate::socks5::{Cmd, Reply, Request, Socks5Codec, S5AUTH_NO_ACCEPTABLE_METHODS};
 use dyn_clone::clone_box;
 use futures::future::try_join;
 use futures_util::future::FutureExt;
 use log::{error, info};
 use std::io;
-use std::net::SocketAddr;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use tokio::codec::Framed;
 use tokio::io::{split, AsyncReadExt};
 use tokio::net::{TcpListener, TcpStream};
-use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
+use trust_dns_resolver::config::{NameServerConfig, Protocol, ResolverConfig, ResolverOpts};
 use trust_dns_resolver::error::ResolveError;
 use trust_dns_resolver::AsyncResolver;
-use yimu::auth::{Authenticate, NoAuth, UsernamePasswordAuth};
-use yimu::dns::AsyncResolverExt;
-use yimu::error::{Socks5Error, YimuError};
-use yimu::framed_ext::FramedExt;
-use yimu::socks5::{AuthNegoReply, AuthNegoRequest, NegotiateCodec, REP_SUCCEEDED};
-use yimu::socks5::{Cmd, Reply, Request, Socks5Codec, S5AUTH_NO_ACCEPTABLE_METHODS};
 
-#[tokio::main(multi_thread)]
-async fn main() -> Result<(), YimuError> {
-    env_logger::init();
+pub struct Server {
+    state: Arc<State>,
+}
 
-    let server = Server::new(State::new());
-    server.run().await?;
-    Ok(())
+impl Server {
+    pub fn builder() -> Builder {
+        Builder::new()
+    }
 }
 
 pub struct State {
-    resolver: AsyncResolver,
     listen_addr: SocketAddr,
     authenticators: Vec<Box<dyn Authenticate + Send + Sync + 'static>>,
+    resolver: AsyncResolver,
 }
 
 impl State {
-    pub fn new() -> State {
-        // TODO: 如何处理 fut???
-        let (resolver, fut) = AsyncResolver::new(ResolverConfig::google(), ResolverOpts::default());
-        tokio::spawn(fut);
-        let sock_addr = "0.0.0.0:9011".parse::<SocketAddr>().unwrap();
-        let authenticators: Vec<Box<dyn Authenticate + Send + Sync + 'static>> = vec![
-            Box::new(NoAuth),
-            Box::new(UsernamePasswordAuth::new(
-                "yfaming".to_string(),
-                "yfaming".to_string(),
-            )),
-        ];
-        State {
-            resolver,
-            listen_addr: sock_addr,
-            authenticators,
-        }
-    }
-
     pub fn resolver(&self) -> AsyncResolver {
         self.resolver.clone()
-    }
-
-    pub fn add_authenticator<T: Authenticate + 'static>(&mut self, authenticator: T)
-    where
-        T: Authenticate + Send + Sync + 'static,
-    {
-        self.authenticators.push(Box::new(authenticator));
     }
 
     pub fn authenticator(&self, auth_nego_req: &AuthNegoRequest) -> Option<Box<dyn Authenticate>> {
@@ -76,17 +51,113 @@ impl State {
     }
 }
 
-pub struct Server {
-    state: Arc<State>,
+pub struct Builder {
+    ip: IpAddr,
+    port: u16,
+    authenticators: Vec<Box<dyn Authenticate + Send + Sync + 'static>>,
+    dns: Dns,
 }
 
-impl Server {
-    pub fn new(state: State) -> Server {
-        Server {
-            state: Arc::new(state),
+impl Builder {
+    pub fn new() -> Builder {
+        Builder {
+            ip: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
+            port: 0,
+            authenticators: vec![],
+            dns: Dns::new(),
         }
     }
 
+    pub fn build(self) -> Result<Server, YimuError> {
+        let state = State {
+            listen_addr: SocketAddr::new(self.ip, self.port),
+            authenticators: self.authenticators,
+            resolver: self.dns.create_resolver()?,
+        };
+
+        Ok(Server {
+            state: Arc::new(state),
+        })
+    }
+
+    pub fn ip(mut self, ip: IpAddr) -> Builder {
+        self.ip = ip;
+        self
+    }
+
+    pub fn port(mut self, port: u16) -> Builder {
+        self.port = port;
+        self
+    }
+
+    pub fn add_authenticator<T>(mut self, authenticator: T) -> Builder
+    where
+        T: Authenticate + Send + Sync + 'static,
+    {
+        self.authenticators.push(Box::new(authenticator));
+        self
+    }
+
+    pub fn dns(mut self, dns: Dns) -> Builder {
+        self.dns = dns;
+        self
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum Dns {
+    System,
+    Google,
+    Cloudflare,
+    Quad9,
+    NameServer(SocketAddr),
+}
+
+impl Dns {
+    pub fn new() -> Dns {
+        Dns::System
+    }
+
+    pub fn create_resolver(&self) -> Result<AsyncResolver, YimuError> {
+        let opts = ResolverOpts::default();
+        let resolver = match self {
+            Dns::System => {
+                let (resolver, background) = AsyncResolver::from_system_conf()?;
+                tokio::spawn(background);
+                resolver
+            }
+            Dns::Google => {
+                let (resolver, background) = AsyncResolver::new(ResolverConfig::google(), opts);
+                tokio::spawn(background);
+                resolver
+            }
+            Dns::Cloudflare => {
+                let (resolver, background) = AsyncResolver::new(ResolverConfig::google(), opts);
+                tokio::spawn(background);
+                resolver
+            }
+            Dns::Quad9 => {
+                let (resolver, background) = AsyncResolver::new(ResolverConfig::google(), opts);
+                tokio::spawn(background);
+                resolver
+            }
+            Dns::NameServer(socket_addr) => {
+                let mut config = ResolverConfig::new();
+                config.add_name_server(NameServerConfig {
+                    socket_addr: *socket_addr,
+                    protocol: Protocol::Udp,
+                    tls_dns_name: None,
+                });
+                let (resolver, background) = AsyncResolver::new(config, opts);
+                tokio::spawn(background);
+                resolver
+            }
+        };
+        Ok(resolver)
+    }
+}
+
+impl Server {
     pub async fn run(&self) -> Result<(), io::Error> {
         let listen_addr = self.state.listen_addr;
         let mut listener = TcpListener::bind(listen_addr).await?;
