@@ -1,5 +1,6 @@
 use crate::error::Socks5Error;
 use bytes::{Buf, BufMut, BytesMut};
+use num_enum::TryFromPrimitive;
 use std::convert::TryFrom;
 use std::fmt;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
@@ -77,43 +78,20 @@ impl Encoder<AuthNegoReply> for NegotiateCodec {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, TryFromPrimitive)]
+#[repr(u8)]
 pub enum Cmd {
     Connect = 1,
     Bind = 2,
     UdpAssociate = 3,
 }
 
-impl TryFrom<u8> for Cmd {
-    type Error = Socks5Error;
-
-    fn try_from(value: u8) -> Result<Cmd, Socks5Error> {
-        match value {
-            1 => Ok(Cmd::Connect),
-            2 => Ok(Cmd::Bind),
-            3 => Ok(Cmd::UdpAssociate),
-            _ => Err(Socks5Error::InvalidCmd(value)),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, TryFromPrimitive)]
+#[repr(u8)]
 pub enum AddrType {
     V4 = 1,
     Domain = 3,
     V6 = 4,
-}
-
-impl TryFrom<u8> for AddrType {
-    type Error = Socks5Error;
-    fn try_from(value: u8) -> Result<AddrType, Socks5Error> {
-        match value {
-            1 => Ok(AddrType::V4),
-            3 => Ok(AddrType::Domain),
-            4 => Ok(AddrType::V6),
-            _ => Err(Socks5Error::InvalidAddrType(value)),
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -239,7 +217,8 @@ impl Decoder for Socks5Codec {
             return Ok(None);
         }
 
-        let addr_type = AddrType::try_from(src[3])?;
+        let addr_type =
+            AddrType::try_from(src[3]).map_err(|e| Socks5Error::InvalidAddrType(e.number))?;
         // req_len: ver(1) + cmd(1) + rsv(1) + atyp(1) + len_of_addr + dst.port(2)
         // for AddrType::Domain, the 1st byte of DST.ADDR is length of domain
         let (addr_start, addr_len, req_len): (usize, usize, usize) = match addr_type {
@@ -273,9 +252,10 @@ impl Decoder for Socks5Codec {
         let port_raw: [u8; 2] = [src[port_start], src[port_start + 1]];
         let port: u16 = u16::from_be_bytes(port_raw);
 
+        let cmd = Cmd::try_from(src[1]).map_err(|e| Socks5Error::InvalidCmd(e.number))?;
         let req = Request {
             version: src[0],
-            cmd: Cmd::try_from(src[1])?,
+            cmd: cmd,
             rsv: src[2],
             dest_addr: addr,
             dest_port: port,
