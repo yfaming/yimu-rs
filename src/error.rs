@@ -2,7 +2,7 @@ use std::fmt;
 use std::io;
 use trust_dns_resolver::error::ResolveError;
 
-pub type YimuError = failure::Error;
+pub type YimuError = anyhow::Error;
 
 #[derive(Debug)]
 pub enum Socks5Error {

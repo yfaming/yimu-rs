@@ -11,10 +11,10 @@ async-trait = "0.1"
 bytes = "0.5"
 dyn-clone = "1.0.1"
 env_logger = "0.7.1"
-failure = "0.1.7"
 futures = "0.3.4"
 log = "0.4.8"
 num_enum = "0.5.1"
 tokio = { version = "0.2.16", features = ["full"] }
 tokio-util = { version = "0.3.1", features = ["codec"] }
 trust-dns-resolver = "0.19.3"
+anyhow = "1.0.38"
