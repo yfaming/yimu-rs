@@ -1,8 +1,7 @@
 use crate::error::YimuError;
 use crate::socks5::Addr;
 use async_trait::async_trait;
-use std::error::Error;
-use std::fmt::{self, Display, Formatter};
+use thiserror::Error;
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 use trust_dns_resolver::config::{NameServerConfig, Protocol, ResolverConfig, ResolverOpts};
@@ -65,7 +64,8 @@ impl Dns {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
+#[error("parse dns error")]
 pub struct ParseDnsError;
 
 impl FromStr for Dns {
@@ -97,11 +97,3 @@ impl FromStr for Dns {
         return Err(ParseDnsError);
     }
 }
-
-impl Display for ParseDnsError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "parse dns error")
-    }
-}
-
-impl Error for ParseDnsError {}
