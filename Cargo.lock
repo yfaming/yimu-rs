@@ -1129,6 +1129,7 @@ dependencies = [
  "log",
  "num_enum",
  "structopt",
+ "thiserror",
  "tokio",
  "tokio-util",
  "trust-dns-resolver",

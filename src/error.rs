@@ -1,41 +1,27 @@
-use std::fmt;
 use std::io;
 use trust_dns_resolver::error::ResolveError;
+use thiserror::Error;
 
 pub type YimuError = anyhow::Error;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum Socks5Error {
+    #[error("auth failed")]
     AuthFailed,
+    #[error("invalid cmd: {0}")]
     InvalidCmd(u8),
+    #[error("invalid address type: {0}")]
     InvalidAddrType(u8),
+    #[error("invalid domain name")]
     InvalidDomainName,
-    ResolveError(ResolveError),
-    Io(io::Error),
+    #[error("resolve error: {0}")]
+    ResolveError(#[from] ResolveError),
+    #[error("io error: {0}")]
+    Io(#[from] io::Error),
 }
 
 impl Socks5Error {
     pub fn invalid_data() -> Socks5Error {
         Socks5Error::Io(io::Error::from(io::ErrorKind::InvalidData))
-    }
-}
-
-impl fmt::Display for Socks5Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
-impl std::error::Error for Socks5Error {}
-
-impl From<io::Error> for Socks5Error {
-    fn from(e: io::Error) -> Socks5Error {
-        Socks5Error::Io(e)
-    }
-}
-
-impl From<ResolveError> for Socks5Error {
-    fn from(e: ResolveError) -> Socks5Error {
-        Socks5Error::ResolveError(e)
     }
 }
