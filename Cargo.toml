@@ -10,12 +10,12 @@ edition = "2018"
 anyhow = "1.0.38"
 async-trait = "0.1"
 bytes = "1"
+clap = { version = "3", features = ["derive", "env"] }
 dyn-clone = "1.0.1"
 env_logger = "0.7.1"
-futures = "0.3.4"
+futures = "0.3"
 log = "0.4.8"
 num_enum = "0.5.1"
-structopt = "0.3.21"
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7", features = ["codec"] }
 trust-dns-resolver = "0.21"

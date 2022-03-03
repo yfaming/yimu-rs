@@ -1,45 +1,45 @@
 use std::net::{IpAddr, Ipv4Addr};
 use std::process;
-use structopt::StructOpt;
 use yimu::auth::{NoAuth, UsernamePasswordAuth};
 use yimu::dns::Dns;
 use yimu::error::YimuError;
 use yimu::server::Server;
 
-#[derive(Debug, StructOpt)]
-#[structopt(name = "yimu", about = "yimu is a socks5 server")]
+#[derive(Debug, clap::Parser)]
+#[clap(name = "yimu", about = "yimu is a socks5 server")]
 pub struct Opt {
-    #[structopt(
+    #[clap(
         long = "port",
         default_value = "9011",
         help = "the port yimu listens to"
     )]
     pub port: u16,
 
-    #[structopt(
+    #[clap(
         long = "dns",
         default_value = "google",
         help = "the dns resolver to use. allowed values are: system, google, cloudflare, quad9, <ip> and <ip:port>."
     )]
     pub dns: Dns,
 
-    #[structopt(
+    #[clap(
         long = "no_auth",
         help = "if specified, it's allowed to connect to yimu without password. \
         Note: can be used together with auth_username and auth_password"
     )]
     pub no_auth: bool,
 
-    #[structopt(
+    #[clap(
         long = "auth_username",
         help = "specify username for authentication, should be used along with auth_password"
     )]
     pub auth_username: Option<String>,
 
-    #[structopt(
+    #[clap(
         long = "auth_password",
         help = "specify password for authentication, should be used along with auth_username"
     )]
+
     pub auth_password: Option<String>,
 }
 
@@ -47,7 +47,7 @@ pub struct Opt {
 async fn main() -> Result<(), YimuError> {
     env_logger::init();
 
-    let opt = Opt::from_args();
+    let opt: Opt = clap::Parser::parse();
     if (opt.auth_username.is_some() && opt.auth_password.is_none())
         || (opt.auth_username.is_none() && opt.auth_password.is_some())
     {
