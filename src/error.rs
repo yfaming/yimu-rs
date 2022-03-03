@@ -1,6 +1,6 @@
 use std::io;
-use trust_dns_resolver::error::ResolveError;
 use thiserror::Error;
+use trust_dns_resolver::error::ResolveError;
 
 pub type YimuError = anyhow::Error;
 

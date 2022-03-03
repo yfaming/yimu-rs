@@ -1,9 +1,9 @@
 use crate::error::YimuError;
 use crate::socks5::Addr;
 use async_trait::async_trait;
-use thiserror::Error;
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
+use thiserror::Error;
 use trust_dns_resolver::config::{NameServerConfig, Protocol, ResolverConfig, ResolverOpts};
 use trust_dns_resolver::error::ResolveError;
 use trust_dns_resolver::TokioAsyncResolver;
@@ -46,9 +46,7 @@ impl Dns {
         let resolver = match self {
             Dns::System => TokioAsyncResolver::tokio_from_system_conf()?,
             Dns::Google => TokioAsyncResolver::tokio(ResolverConfig::google(), opts)?,
-            Dns::Cloudflare => {
-                TokioAsyncResolver::tokio(ResolverConfig::cloudflare(), opts)?
-            }
+            Dns::Cloudflare => TokioAsyncResolver::tokio(ResolverConfig::cloudflare(), opts)?,
             Dns::Quad9 => TokioAsyncResolver::tokio(ResolverConfig::quad9(), opts)?,
             Dns::NameServer(socket_addr) => {
                 let mut config = ResolverConfig::new();

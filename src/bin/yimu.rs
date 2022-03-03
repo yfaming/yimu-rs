@@ -39,7 +39,6 @@ pub struct Opt {
         long = "auth_password",
         help = "specify password for authentication, should be used along with auth_username"
     )]
-
     pub auth_password: Option<String>,
 }
 
