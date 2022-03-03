@@ -1,7 +1,7 @@
 yimu-rs
 =======
 
-`yimu` is a socks5 server implemented with Rust and `tokio` using `async/await` feature.
+`yimu` is a socks5 server implemented with Rust and `tokio`.
 
 References:
 * [SOCKS Protocol Version 5](https://tools.ietf.org/html/rfc1928)

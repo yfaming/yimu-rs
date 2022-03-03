@@ -44,20 +44,22 @@ impl Dns {
     pub async fn create_resolver(&self) -> Result<TokioAsyncResolver, YimuError> {
         let opts = ResolverOpts::default();
         let resolver = match self {
-            Dns::System => TokioAsyncResolver::tokio_from_system_conf().await?,
-            Dns::Google => TokioAsyncResolver::tokio(ResolverConfig::google(), opts).await?,
+            Dns::System => TokioAsyncResolver::tokio_from_system_conf()?,
+            Dns::Google => TokioAsyncResolver::tokio(ResolverConfig::google(), opts)?,
             Dns::Cloudflare => {
-                TokioAsyncResolver::tokio(ResolverConfig::cloudflare(), opts).await?
+                TokioAsyncResolver::tokio(ResolverConfig::cloudflare(), opts)?
             }
-            Dns::Quad9 => TokioAsyncResolver::tokio(ResolverConfig::quad9(), opts).await?,
+            Dns::Quad9 => TokioAsyncResolver::tokio(ResolverConfig::quad9(), opts)?,
             Dns::NameServer(socket_addr) => {
                 let mut config = ResolverConfig::new();
                 config.add_name_server(NameServerConfig {
                     socket_addr: *socket_addr,
                     protocol: Protocol::Udp,
                     tls_dns_name: None,
+                    trust_nx_responses: true,
+                    bind_addr: None,
                 });
-                TokioAsyncResolver::tokio(config, opts).await?
+                TokioAsyncResolver::tokio(config, opts)?
             }
         };
         Ok(resolver)

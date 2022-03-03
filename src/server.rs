@@ -106,7 +106,7 @@ impl Builder {
 impl Server {
     pub async fn run(&self) -> Result<(), io::Error> {
         let listen_addr = self.state.listen_addr;
-        let mut listener = TcpListener::bind(listen_addr).await?;
+        let listener = TcpListener::bind(listen_addr).await?;
         info!("listening on: {}", listen_addr);
 
         loop {
